@@ -1,12 +1,20 @@
 # routes/users.py
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from datetime import datetime, timezone
 
-from database import get_db
-from models import User, RefreshToken
-from schemas import UserPublic, SessionInfo, SessionListResponse
-from auth.dependencies import get_current_user
+from src.auth.dependencies import get_current_user
+from src.auth.hashing import hash_password, verify_password
+from src.database import get_db
+from src.models import RefreshToken, User
+from src.schemas import (
+    ChangePasswordSchema,
+    DeleteAccountSchema,
+    SessionInfo,
+    SessionListResponse,
+    UpdateProfileSchema,
+    UserPublic,
+)
 
 router = APIRouter(prefix="/users", tags=["users"])
 

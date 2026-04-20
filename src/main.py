@@ -1,6 +1,8 @@
-def main():
-    print("Hello from auth-microservice!")
+# main.py
+from fastapi import FastAPI
+from routes import auth, users
 
+app = FastAPI()
 
-if __name__ == "__main__":
-    main()
+app.include_router(auth.router, prefix="/auth")
+app.include_router(users.router)  # already has /users prefix

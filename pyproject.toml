@@ -5,6 +5,7 @@ description = "auth microservice testing"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "fastapi>=0.136.0",
     "passlib>=1.7.4",
     "pydantic>=2.13.2",
     "pydantic-settings>=2.13.1",

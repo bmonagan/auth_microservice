@@ -1,7 +1,7 @@
 # auth/jwt.py
 from datetime import datetime, timedelta, timezone
 from jose import JWTError, jwt
-from config import settings
+from src.config import settings
 
 def create_access_token(user_id: int) -> str:
     payload = {

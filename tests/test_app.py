@@ -1,9 +1,11 @@
+import os
 import sys
 from pathlib import Path
 
 from fastapi.testclient import TestClient
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
+os.environ.setdefault("DATABASE_URL", "sqlite:///./test.db")
 
 from src.main import app
 

@@ -26,7 +26,7 @@ def get_current_user(
 
     user = db.query(models.User).filter(models.User.id == int(payload["sub"])).first()
 
-    if not user or not user.is_active:
+    if not user or user.is_active is False:
         raise HTTPException(status_code=401, detail="User not found or inactive")
 
     return user

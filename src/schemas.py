@@ -70,6 +70,19 @@ class UserInDB(UserPublic):
     hashed_password: str  # never returned to client, used internally
 
 
+class UpdateProfileSchema(BaseModel):
+    email: EmailStr
+
+
+class ChangePasswordSchema(BaseModel):
+    old_password: str
+    new_password: str
+
+
+class DeleteAccountSchema(BaseModel):
+    password: str
+
+
 # ─────────────────────────────────────────
 # SESSION SCHEMAS (multi-device)
 # ─────────────────────────────────────────

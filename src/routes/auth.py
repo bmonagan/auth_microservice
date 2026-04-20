@@ -4,13 +4,10 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from src.schemas import RegisterSchema, LoginSchema
-from src.auth.dependencies import get_current_user
 from src.auth.jwt import create_access_token, create_refresh_token
-from src.auth.hashing import verify_password
-from src.models import RefreshToken
-from src.routes.users import User
+from src.auth.hashing import hash_password, verify_password
+from src.models import RefreshToken, User
 from src.database import get_db
-from src.auth.hashing import hash_password
 
 router = APIRouter()
 

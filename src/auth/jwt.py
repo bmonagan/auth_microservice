@@ -54,3 +54,24 @@ def decode_token(token: str) -> dict | None:
         return payload
     except JWTError:
         return None
+
+
+def get_token_ttl(payload: dict) -> int:
+    """
+    Calculate remaining time-to-live for a token in seconds.
+    
+    Args:
+        payload: Decoded JWT payload
+    
+    Returns:
+        TTL in seconds (minimum 1 second)
+    """
+    if "exp" not in payload:
+        return 0
+    
+    exp_timestamp = payload["exp"]
+    now_timestamp = datetime.now(timezone.utc).timestamp()
+    ttl = int(exp_timestamp - now_timestamp)
+    
+    # Return at least 1 second to avoid Redis key expiry issues
+    return max(1, ttl)

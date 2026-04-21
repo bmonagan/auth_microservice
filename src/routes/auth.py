@@ -3,17 +3,18 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from src.auth.email import send_verification_email
+from src.auth.email import send_verification_email, send_password_reset_email
 from src.auth.hashing import hash_password, verify_password
 from src.auth.jwt import (
     create_access_token,
     create_email_verification_token,
+    create_password_reset_token,
     create_refresh_token,
     decode_token,
 )
 from src.database import get_db
 from src.models import RefreshToken, User
-from src.schemas import LoginSchema, RegisterSchema
+from src.schemas import LoginSchema, RegisterSchema, ForgotPasswordSchema, ResetPasswordSchema
 
 router = APIRouter()
 
@@ -95,3 +96,41 @@ def login(payload: LoginSchema, db: Session = Depends(get_db)):
         "refresh_token": refresh_token_str,
         "token_type": "bearer",
     }
+
+
+@router.post("/forgot-password")
+def forgot_password(payload: ForgotPasswordSchema, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == payload.email).first()
+    
+    # Always return success to prevent email enumeration attacks
+    if not user:
+        return {"message": "If email exists, a password reset link has been sent"}
+    
+    reset_token = create_password_reset_token(user.id, user.email)
+    send_password_reset_email(user.email, reset_token)
+    
+    return {"message": "If email exists, a password reset link has been sent"}
+
+
+@router.post("/reset-password")
+def reset_password(payload: ResetPasswordSchema, db: Session = Depends(get_db)):
+    decoded = decode_token(payload.token)
+    if not decoded or decoded.get("type") != "password_reset":
+        raise HTTPException(status_code=400, detail="Invalid or expired reset link")
+
+    user_id = decoded.get("sub")
+    token_email = decoded.get("email")
+    if not user_id or not token_email:
+        raise HTTPException(status_code=400, detail="Invalid reset payload")
+
+    user = db.query(User).filter(User.id == int(user_id)).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if user.email != token_email:
+        raise HTTPException(status_code=400, detail="Reset link does not match current email")
+
+    user.hashed_password = hash_password(payload.new_password)
+    db.commit()
+
+    return {"message": "Password reset successfully"}

@@ -2,7 +2,7 @@
 Test suite for auth endpoints (register, login, refresh token).
 """
 
-from src.auth.jwt import create_email_verification_token
+from src.auth.jwt import create_email_verification_token, create_password_reset_token
 from src.models import User
 
 
@@ -207,3 +207,123 @@ class TestEmailVerification:
         token = create_access_token(test_user.id)
         response = client.get(f"/auth/verify-email?token={token}")
         assert response.status_code == 400
+
+
+class TestPasswordReset:
+    """Password reset flow endpoint tests."""
+
+    def test_forgot_password_existing_email(self, client, test_user):
+        """Forgot password with existing email returns success message."""
+        response = client.post(
+            "/auth/forgot-password",
+            json={"email": "testuser@example.com"},
+        )
+        assert response.status_code == 200
+        assert "reset link has been sent" in response.json()["message"]
+
+    def test_forgot_password_nonexistent_email(self, client):
+        """Forgot password with non-existent email still returns success (enumeration protection)."""
+        response = client.post(
+            "/auth/forgot-password",
+            json={"email": "nonexistent@example.com"},
+        )
+        assert response.status_code == 200
+        assert "reset link has been sent" in response.json()["message"]
+
+    def test_forgot_password_invalid_email(self, client):
+        """Forgot password fails with invalid email format."""
+        response = client.post(
+            "/auth/forgot-password",
+            json={"email": "not-an-email"},
+        )
+        assert response.status_code == 422
+
+    def test_forgot_password_missing_email(self, client):
+        """Forgot password fails with missing email."""
+        response = client.post(
+            "/auth/forgot-password",
+            json={},
+        )
+        assert response.status_code == 422
+
+    def test_reset_password_success(self, client, test_user):
+        """User can reset password with valid token."""
+        token = create_password_reset_token(test_user.id, test_user.email)
+        response = client.post(
+            "/auth/reset-password",
+            json={"token": token, "new_password": "NewPassword456"},
+        )
+        assert response.status_code == 200
+        assert "successfully" in response.json()["message"]
+
+        # Verify user can login with new password
+        login_response = client.post(
+            "/auth/login",
+            json={"email": "testuser@example.com", "password": "NewPassword456"},
+        )
+        assert login_response.status_code == 200
+        assert "access_token" in login_response.json()
+
+    def test_reset_password_old_password_fails(self, client, test_user):
+        """User cannot login with old password after reset."""
+        token = create_password_reset_token(test_user.id, test_user.email)
+        client.post(
+            "/auth/reset-password",
+            json={"token": token, "new_password": "NewPassword456"},
+        )
+
+        # Try to login with old password
+        login_response = client.post(
+            "/auth/login",
+            json={"email": "testuser@example.com", "password": "TestPassword123"},
+        )
+        assert login_response.status_code == 401
+        assert "Invalid credentials" in login_response.json()["detail"]
+
+    def test_reset_password_invalid_token(self, client):
+        """Reset password fails with invalid token."""
+        response = client.post(
+            "/auth/reset-password",
+            json={"token": "not-a-valid-token", "new_password": "NewPassword456"},
+        )
+        assert response.status_code == 400
+        assert "Invalid or expired" in response.json()["detail"]
+
+    def test_reset_password_wrong_token_type(self, client, test_user):
+        """Reset password fails with wrong token type (e.g., access token)."""
+        from src.auth.jwt import create_access_token
+
+        token = create_access_token(test_user.id)
+        response = client.post(
+            "/auth/reset-password",
+            json={"token": token, "new_password": "NewPassword456"},
+        )
+        assert response.status_code == 400
+        assert "Invalid or expired" in response.json()["detail"]
+
+    def test_reset_password_weak_password(self, client, test_user):
+        """Reset password fails with weak password."""
+        token = create_password_reset_token(test_user.id, test_user.email)
+        response = client.post(
+            "/auth/reset-password",
+            json={"token": token, "new_password": "weak"},
+        )
+        assert response.status_code == 422
+
+    def test_reset_password_missing_fields(self, client):
+        """Reset password fails with missing fields."""
+        response = client.post(
+            "/auth/reset-password",
+            json={"token": "some-token"},
+        )
+        assert response.status_code == 422
+
+    def test_reset_password_email_mismatch(self, client, test_user, test_db):
+        """Reset password fails if email in token doesn't match user's current email."""
+        token = create_password_reset_token(test_user.id, "old@example.com")
+        response = client.post(
+            "/auth/reset-password",
+            json={"token": token, "new_password": "NewPassword456"},
+        )
+        assert response.status_code == 400
+        assert "does not match" in response.json()["detail"]

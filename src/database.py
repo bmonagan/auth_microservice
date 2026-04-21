@@ -1,4 +1,5 @@
-# database.py
+from typing import Any
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 from src.config import settings
@@ -6,7 +7,7 @@ from src.config import settings
 
 def _build_engine():
     database_url = settings.DATABASE_URL
-    engine_kwargs = {"echo": False}
+    engine_kwargs: dict[str, Any] = {"echo": False}
 
     if database_url.startswith("sqlite"):
         engine_kwargs["connect_args"] = {"check_same_thread": False}

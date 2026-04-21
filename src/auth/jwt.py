@@ -1,5 +1,6 @@
 # auth/jwt.py
 from datetime import datetime, timedelta, timezone
+import secrets
 
 from jose import JWTError, jwt
 
@@ -17,9 +18,12 @@ def create_access_token(user_id: int) -> str:
 
 
 def create_refresh_token(user_id: int) -> str:
+    # Include a random nonce to ensure token uniqueness even if created at same time
+    nonce = secrets.token_hex(8)
     payload = {
         "sub": str(user_id),
         "type": "refresh",
+        "nonce": nonce,
         "exp": datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
         "iat": datetime.now(timezone.utc),
     }

@@ -24,6 +24,7 @@ os.environ["SECRET_KEY"] = "test-secret-key-change-in-production"
 from src.database import Base, get_db
 from src.main import app
 from src.limiter import limiter
+from src.cache import clear_memory_blacklist
 from src.models import User
 from src.auth.hashing import hash_password
 
@@ -34,6 +35,14 @@ def disable_rate_limiter_for_tests():
     limiter.enabled = False
     yield
     limiter.enabled = True
+
+
+@pytest.fixture(scope="function", autouse=True)
+def clear_blacklist():
+    """Clear the token blacklist before each test."""
+    clear_memory_blacklist()
+    yield
+    clear_memory_blacklist()
 
 
 @pytest.fixture(scope="function")

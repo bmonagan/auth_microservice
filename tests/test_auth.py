@@ -370,3 +370,107 @@ class TestLoginRateLimit:
 
         # At least one request should succeed in getting past basic validation
         assert len(responses) >= 1
+
+
+class TestLogout:
+    """Logout endpoint and token blacklist tests."""
+
+    def test_logout_success(self, client, test_user):
+        """User can logout and invalidate access token."""
+        # Login to get tokens
+        login_response = client.post(
+            "/auth/login",
+            json={"email": "testuser@example.com", "password": "TestPassword123"},
+        )
+        assert login_response.status_code == 200
+        access_token = login_response.json()["access_token"]
+
+        # Logout
+        logout_response = client.post(
+            "/auth/logout",
+            headers={"Authorization": f"Bearer {access_token}"}
+        )
+        assert logout_response.status_code == 200
+        assert "successfully" in logout_response.json()["message"]
+
+    def test_logout_invalidates_access_token(self, client, test_user):
+        """After logout, the access token becomes invalid."""
+        # Login to get token
+        login_response = client.post(
+            "/auth/login",
+            json={"email": "testuser@example.com", "password": "TestPassword123"},
+        )
+        access_token = login_response.json()["access_token"]
+
+        # Logout
+        client.post(
+            "/auth/logout",
+            headers={"Authorization": f"Bearer {access_token}"}
+        )
+
+        # Try to use the token after logout
+        me_response = client.get(
+            "/users/me",
+            headers={"Authorization": f"Bearer {access_token}"}
+        )
+        assert me_response.status_code == 401
+        assert "revoked" in me_response.json()["detail"].lower()
+
+    def test_logout_requires_valid_token(self, client):
+        """Logout fails with invalid token."""
+        response = client.post(
+            "/auth/logout",
+            headers={"Authorization": "Bearer invalid-token"}
+        )
+        assert response.status_code == 401
+
+    def test_logout_requires_authorization_header(self, client):
+        """Logout fails without Authorization header."""
+        response = client.post("/auth/logout")
+        assert response.status_code == 403  # Missing credentials
+
+    def test_logout_requires_bearer_token(self, client, test_user):
+        """Logout fails with malformed Authorization header."""
+        login_response = client.post(
+            "/auth/login",
+            json={"email": "testuser@example.com", "password": "TestPassword123"},
+        )
+        access_token = login_response.json()["access_token"]
+
+        # Send with invalid header format (no "Bearer " prefix)
+        response = client.post(
+            "/auth/logout",
+            headers={"Authorization": access_token}  # Missing "Bearer " prefix
+        )
+        assert response.status_code == 400
+
+    def test_logout_revokes_refresh_tokens(self, client, test_user, test_db):
+        """Logout also revokes all refresh tokens for the user."""
+        from src.models import RefreshToken
+
+        # Login to get tokens
+        login_response = client.post(
+            "/auth/login",
+            json={"email": "testuser@example.com", "password": "TestPassword123"},
+        )
+        access_token = login_response.json()["access_token"]
+
+        # Verify refresh token is active before logout
+        tokens_before = test_db.query(RefreshToken).filter(
+            RefreshToken.user_id == test_user.id,
+            RefreshToken.revoked == False
+        ).all()
+        assert len(tokens_before) >= 1
+
+        # Logout
+        client.post(
+            "/auth/logout",
+            headers={"Authorization": f"Bearer {access_token}"}
+        )
+
+        # Verify all refresh tokens are revoked after logout
+        tokens_after = test_db.query(RefreshToken).filter(
+            RefreshToken.user_id == test_user.id,
+            RefreshToken.revoked == False
+        ).all()
+        assert len(tokens_after) == 0

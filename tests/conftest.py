@@ -23,8 +23,17 @@ os.environ["SECRET_KEY"] = "test-secret-key-change-in-production"
 
 from src.database import Base, get_db
 from src.main import app
+from src.limiter import limiter
 from src.models import User
 from src.auth.hashing import hash_password
+
+
+@pytest.fixture(scope="session", autouse=True)
+def disable_rate_limiter_for_tests():
+    """Disable rate limiter globally for all tests to avoid blocking requests."""
+    limiter.enabled = False
+    yield
+    limiter.enabled = True
 
 
 @pytest.fixture(scope="function")

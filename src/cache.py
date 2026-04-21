@@ -9,23 +9,31 @@ logger = logging.getLogger(__name__)
 # Global Redis client (lazy-loaded)
 _redis_client: Optional[redis.Redis] = None
 
+# Track whether we've already attempted to connect to Redis
+_redis_connection_attempted = False
+
 # In-memory fallback for testing/development when Redis is unavailable
 _memory_blacklist: Set[str] = set()
 
 
 def get_redis_client() -> Optional[redis.Redis]:
     """Get or create Redis client singleton. Returns None if Redis is unavailable."""
-    global _redis_client
-    if _redis_client is None:
-        try:
-            _redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
-            # Test connection
-            _redis_client.ping()
-            logger.info("Redis connection established")
-        except Exception as e:
-            logger.warning(f"Failed to connect to Redis: {e}. Falling back to in-memory blacklist.")
-            _redis_client = False  # Mark as tried but failed
-    return _redis_client if _redis_client is not False else None
+    global _redis_client, _redis_connection_attempted
+    
+    if _redis_connection_attempted:
+        return _redis_client
+    
+    _redis_connection_attempted = True
+    try:
+        _redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
+        # Test connection
+        _redis_client.ping()
+        logger.info("Redis connection established")
+    except Exception as e:
+        logger.warning(f"Failed to connect to Redis: {e}. Falling back to in-memory blacklist.")
+        _redis_client = None
+    
+    return _redis_client
 
 
 def blacklist_token(token: str, ttl_seconds: int) -> bool:

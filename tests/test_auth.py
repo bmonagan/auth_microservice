@@ -427,7 +427,7 @@ class TestLogout:
     def test_logout_requires_authorization_header(self, client):
         """Logout fails without Authorization header."""
         response = client.post("/auth/logout")
-        assert response.status_code == 403  # Missing credentials
+        assert response.status_code == 401  # Missing credentials (from OAuth2PasswordBearer)
 
     def test_logout_requires_bearer_token(self, client, test_user):
         """Logout fails with malformed Authorization header."""
@@ -442,7 +442,7 @@ class TestLogout:
             "/auth/logout",
             headers={"Authorization": access_token}  # Missing "Bearer " prefix
         )
-        assert response.status_code == 400
+        assert response.status_code == 401  # Invalid token format (from OAuth2PasswordBearer)
 
     def test_logout_revokes_refresh_tokens(self, client, test_user, test_db):
         """Logout also revokes all refresh tokens for the user."""

@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
+from src.auth.device import get_device_info
 from src.auth.email import send_verification_email, send_password_reset_email
 from src.auth.hashing import hash_password, verify_password
 from src.auth.jwt import (
@@ -85,6 +86,9 @@ def login(request: Request, payload: LoginSchema, db: Session = Depends(get_db))
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Email not verified")
 
+    # Detect device information from request
+    device_info = get_device_info(request, payload.device_name)
+
     access_token = create_access_token(user.id)
     refresh_token_str = create_refresh_token(user.id)
 
@@ -92,14 +96,18 @@ def login(request: Request, payload: LoginSchema, db: Session = Depends(get_db))
         token=refresh_token_str,
         user_id=user.id,
         expires_at=datetime.now(timezone.utc) + timedelta(days=7),
+        device_info=device_info,
     )
     db.add(token_record)
     db.commit()
+    db.refresh(token_record)
 
     return {
         "access_token": access_token,
         "refresh_token": refresh_token_str,
         "token_type": "bearer",
+        "device_id": token_record.id,
+        "device_name": device_info,
     }
 
 

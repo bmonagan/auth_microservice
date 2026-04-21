@@ -11,7 +11,10 @@ from src.auth.jwt import (
     create_password_reset_token,
     create_refresh_token,
     decode_token,
+    get_token_ttl,
 )
+from src.auth.dependencies import get_current_user
+from src.cache import blacklist_token
 from src.database import get_db
 from src.limiter import limiter
 from src.models import RefreshToken, User
@@ -136,3 +139,42 @@ def reset_password(payload: ResetPasswordSchema, db: Session = Depends(get_db)):
     db.commit()
 
     return {"message": "Password reset successfully"}
+
+
+@router.post("/logout")
+def logout(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Logout by blacklisting the access token.
+    
+    Also revokes the refresh token associated with current session.
+    """
+    # Extract token from Authorization header
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=400, detail="Missing or invalid Authorization header")
+    
+    access_token = auth_header[7:]  # Remove "Bearer " prefix
+    
+    # Decode token to get TTL for blacklist expiry
+    payload = decode_token(access_token)
+    if not payload:
+        raise HTTPException(status_code=400, detail="Invalid token")
+    
+    ttl = get_token_ttl(payload)
+    
+    # Blacklist the access token
+    if not blacklist_token(access_token, ttl):
+        raise HTTPException(status_code=500, detail="Failed to process logout")
+    
+    # Also revoke refresh tokens for this user to prevent further session use
+    db.query(RefreshToken).filter(
+        RefreshToken.user_id == current_user.id,
+        RefreshToken.revoked == False
+    ).update({"revoked": True})
+    db.commit()
+    
+    return {"message": "Logged out successfully"}

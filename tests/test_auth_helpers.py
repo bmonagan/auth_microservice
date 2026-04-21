@@ -86,7 +86,7 @@ class TestAuthenticationDependency:
     def test_get_current_user_without_token(self, client):
         """Missing token fails authentication."""
         response = client.get("/users/me")
-        assert response.status_code == 403
+        assert response.status_code == 401
     
     def test_get_current_user_with_refresh_token(self, client, test_user):
         """Refresh token is rejected for access."""

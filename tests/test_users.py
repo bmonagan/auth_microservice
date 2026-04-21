@@ -20,7 +20,7 @@ class TestGetCurrentUser:
     def test_get_me_without_token(self, client):
         """Unauthenticated access to /users/me fails."""
         response = client.get("/users/me")
-        assert response.status_code == 403  # FastAPI OAuth2 returns 403
+        assert response.status_code == 401
     
     def test_get_me_with_invalid_token(self, client):
         """Invalid token is rejected."""
@@ -36,7 +36,7 @@ class TestGetCurrentUser:
             "/users/me",
             headers={"Authorization": "InvalidFormat token-here"}
         )
-        assert response.status_code == 403
+        assert response.status_code == 401
 
 
 class TestUpdateProfile:
@@ -86,7 +86,7 @@ class TestUpdateProfile:
             "/users/me",
             json={"email": "newemail@example.com"},
         )
-        assert response.status_code == 403
+        assert response.status_code == 401
 
 
 class TestChangePassword:
@@ -139,7 +139,7 @@ class TestChangePassword:
                 "new_password": "NewPassword456",
             },
         )
-        assert response.status_code == 403
+        assert response.status_code == 401
 
 
 class TestDeleteAccount:
@@ -147,7 +147,8 @@ class TestDeleteAccount:
     
     def test_delete_account_success(self, client, auth_headers, test_user, test_db):
         """User can delete their account with correct password."""
-        response = client.delete(
+        response = client.request(
+            "DELETE",
             "/users/me",
             headers=auth_headers,
             json={"password": "TestPassword123"},
@@ -161,7 +162,8 @@ class TestDeleteAccount:
     
     def test_delete_account_wrong_password(self, client, auth_headers):
         """Cannot delete account with wrong password."""
-        response = client.delete(
+        response = client.request(
+            "DELETE",
             "/users/me",
             headers=auth_headers,
             json={"password": "WrongPassword123"},
@@ -171,11 +173,12 @@ class TestDeleteAccount:
     
     def test_delete_account_without_auth(self, client):
         """Unauthenticated delete fails."""
-        response = client.delete(
+        response = client.request(
+            "DELETE",
             "/users/me",
             json={"password": "TestPassword123"},
         )
-        assert response.status_code == 403
+        assert response.status_code == 401
 
 
 class TestGetSessions:
@@ -192,7 +195,7 @@ class TestGetSessions:
     def test_get_sessions_without_auth(self, client):
         """Unauthenticated access fails."""
         response = client.get("/users/me/sessions")
-        assert response.status_code == 403
+        assert response.status_code == 401
 
 
 class TestRevokeSession:

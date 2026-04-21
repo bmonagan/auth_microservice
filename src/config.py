@@ -1,21 +1,24 @@
 # config.py
-import os
-from pydantic_settings import BaseSettings
-from dotenv import load_dotenv
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
 
 class Settings(BaseSettings):
     SECRET_KEY: str
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+    EMAIL_VERIFICATION_EXPIRE_HOURS: int = 24
     DATABASE_URL: str
     REDIS_URL: str = "redis://localhost:6379"
+    APP_BASE_URL: str = "http://127.0.0.1:8000"
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USE_TLS: bool = True
+    SMTP_USERNAME: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM_EMAIL: str = "no-reply@example.com"
 
-    class Config:
-        env_file = ".env"
+    model_config = SettingsConfigDict(env_file=".env")
 
-load_dotenv()  # Load environment variables from .env file
-settings = Settings(
-    SECRET_KEY=os.getenv("SECRET_KEY", ""),
-    DATABASE_URL=os.getenv("DATABASE_URL", "")
-)
+
+settings = Settings()  # type: ignore[call-arg]

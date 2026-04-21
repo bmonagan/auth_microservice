@@ -1,7 +1,10 @@
 # auth/jwt.py
 from datetime import datetime, timedelta, timezone
+
 from jose import JWTError, jwt
+
 from src.config import settings
+
 
 def create_access_token(user_id: int) -> str:
     payload = {
@@ -12,6 +15,7 @@ def create_access_token(user_id: int) -> str:
     }
     return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
+
 def create_refresh_token(user_id: int) -> str:
     payload = {
         "sub": str(user_id),
@@ -20,6 +24,18 @@ def create_refresh_token(user_id: int) -> str:
         "iat": datetime.now(timezone.utc),
     }
     return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+
+
+def create_email_verification_token(user_id: int, email: str) -> str:
+    payload = {
+        "sub": str(user_id),
+        "email": email,
+        "type": "email_verification",
+        "exp": datetime.now(timezone.utc) + timedelta(hours=settings.EMAIL_VERIFICATION_EXPIRE_HOURS),
+        "iat": datetime.now(timezone.utc),
+    }
+    return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+
 
 def decode_token(token: str) -> dict | None:
     try:

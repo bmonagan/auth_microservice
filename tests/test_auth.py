@@ -2,13 +2,14 @@
 Test suite for auth endpoints (register, login, refresh token).
 """
 
-import pytest
+from src.auth.jwt import create_email_verification_token
+from src.models import User
 
 
 class TestRegister:
     """Register endpoint tests."""
     
-    def test_register_success(self, client):
+    def test_register_success(self, client, test_db):
         """User can register with valid email and strong password."""
         response = client.post(
             "/auth/register",
@@ -20,7 +21,11 @@ class TestRegister:
         assert response.status_code == 201
         data = response.json()
         assert "user_id" in data
-        assert data["message"] == "User created"
+        assert "Check your email" in data["message"]
+
+        created = test_db.query(User).filter(User.email == "newuser@example.com").first()
+        assert created is not None
+        assert created.is_active is False
     
     def test_register_weak_password_too_short(self, client):
         """Register fails if password is under 8 characters."""
@@ -96,6 +101,21 @@ class TestLogin:
         assert "access_token" in data
         assert "refresh_token" in data
         assert data["token_type"] == "bearer"
+
+    def test_login_unverified_user(self, client, test_user, test_db):
+        """Unverified users cannot login."""
+        test_user.is_active = False
+        test_db.commit()
+
+        response = client.post(
+            "/auth/login",
+            json={
+                "email": "testuser@example.com",
+                "password": "TestPassword123"
+            },
+        )
+        assert response.status_code == 403
+        assert "Email not verified" in response.json()["detail"]
     
     def test_login_wrong_password(self, client, test_user):
         """Login fails with wrong password."""
@@ -140,7 +160,7 @@ class TestLogin:
 
 class TestTokenStorage:
     """Verify refresh tokens are persisted after login."""
-    
+
     def test_refresh_token_persisted(self, client, test_db, test_user):
         """Refresh token is stored in database after login."""
         response = client.post(
@@ -151,7 +171,7 @@ class TestTokenStorage:
             },
         )
         assert response.status_code == 200
-        
+
         # Verify token exists in DB
         from src.models import RefreshToken
         tokens = test_db.query(RefreshToken).filter(
@@ -159,3 +179,31 @@ class TestTokenStorage:
         ).all()
         assert len(tokens) == 1
         assert not tokens[0].revoked
+
+
+class TestEmailVerification:
+    """Email verification link endpoint tests."""
+
+    def test_verify_email_success(self, client, test_user, test_db):
+        test_user.is_active = False
+        test_db.commit()
+
+        token = create_email_verification_token(test_user.id, test_user.email)
+        response = client.get(f"/auth/verify-email?token={token}")
+
+        assert response.status_code == 200
+        assert "verified" in response.json()["message"].lower()
+
+        test_db.refresh(test_user)
+        assert test_user.is_active is True
+
+    def test_verify_email_invalid_token(self, client):
+        response = client.get("/auth/verify-email?token=not-a-valid-token")
+        assert response.status_code == 400
+
+    def test_verify_email_wrong_token_type(self, client, test_user):
+        from src.auth.jwt import create_access_token
+
+        token = create_access_token(test_user.id)
+        response = client.get(f"/auth/verify-email?token={token}")
+        assert response.status_code == 400

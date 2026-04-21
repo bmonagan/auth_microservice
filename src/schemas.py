@@ -28,6 +28,7 @@ class RegisterSchema(BaseModel):
 class LoginSchema(BaseModel):
     email: EmailStr
     password: str
+    device_name: Optional[str] = None  # Optional: user-provided device name (e.g., "My Laptop")
 
 
 class RefreshSchema(BaseModel):

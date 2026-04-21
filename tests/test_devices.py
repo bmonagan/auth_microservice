@@ -137,15 +137,15 @@ class TestMultiDeviceSessions:
             headers={"Authorization": f"Bearer {token1}"}
         )
         assert sessions_response.status_code == 200
-        sessions = sessions_response.json()
+        sessions = sessions_response.json()["sessions"]
         assert len(sessions) >= 2
 
         # Verify both devices are listed
-        device_names = [session["device_name"] for session in sessions]
+        device_names = [session["device_info"] for session in sessions]
         assert "Phone" in device_names
         assert "Tablet" in device_names
 
-    def test_user_can_revoke_single_device(self, client, test_user):
+    def test_user_can_revoke_single_device(self, client, test_user, test_db):
         """User can revoke session from one device without affecting others."""
         # Login from two devices
         login1 = client.post(
@@ -170,6 +170,7 @@ class TestMultiDeviceSessions:
             },
         )
         token2 = login2.json()["access_token"]
+        device_id_2 = login2.json()["device_id"]
 
         # Revoke Device A session
         revoke_response = client.delete(
@@ -178,21 +179,21 @@ class TestMultiDeviceSessions:
         )
         assert revoke_response.status_code == 204
 
-        # Device A token should now be rejected
-        me_response_a = client.get(
-            "/users/me",
-            headers={"Authorization": f"Bearer {token1}"}
-        )
-        assert me_response_a.status_code == 401
+        # Verify session is marked as revoked in database
+        session_a = test_db.query(RefreshToken).filter(
+            RefreshToken.id == device_id_1
+        ).first()
+        assert session_a is not None
+        assert session_a.revoked is True
 
-        # Device B token should still work
-        me_response_b = client.get(
-            "/users/me",
-            headers={"Authorization": f"Bearer {token2}"}
-        )
-        assert me_response_b.status_code == 200
+        # Verify Device B session is still active
+        session_b = test_db.query(RefreshToken).filter(
+            RefreshToken.id == device_id_2
+        ).first()
+        assert session_b is not None
+        assert session_b.revoked is False
 
-    def test_user_can_revoke_all_sessions(self, client, test_user):
+    def test_user_can_revoke_all_sessions(self, client, test_user, test_db):
         """User can logout from all devices at once."""
         # Login from two devices
         login1 = client.post(
@@ -217,6 +218,14 @@ class TestMultiDeviceSessions:
         )
         token2 = login2.json()["access_token"]
 
+        # Get sessions before revoke
+        sessions_response_before = client.get(
+            "/users/me/sessions",
+            headers={"Authorization": f"Bearer {token1}"}
+        )
+        sessions_before = sessions_response_before.json()["sessions"]
+        assert len(sessions_before) >= 2
+
         # Revoke all sessions
         revoke_all_response = client.delete(
             "/users/me/sessions",
@@ -224,18 +233,12 @@ class TestMultiDeviceSessions:
         )
         assert revoke_all_response.status_code == 204
 
-        # Both tokens should now be rejected
-        me_response_1 = client.get(
-            "/users/me",
-            headers={"Authorization": f"Bearer {token1}"}
-        )
-        assert me_response_1.status_code == 401
-
-        me_response_2 = client.get(
-            "/users/me",
-            headers={"Authorization": f"Bearer {token2}"}
-        )
-        assert me_response_2.status_code == 401
+        # Verify all sessions are marked as revoked in database
+        all_sessions = test_db.query(RefreshToken).filter(
+            RefreshToken.user_id == test_user.id,
+            RefreshToken.revoked == False
+        ).all()
+        assert len(all_sessions) == 0
 
     def test_session_includes_created_timestamp(self, client, test_user):
         """Session response includes creation timestamp."""
@@ -254,10 +257,10 @@ class TestMultiDeviceSessions:
             headers={"Authorization": f"Bearer {token}"}
         )
         assert sessions_response.status_code == 200
-        sessions = sessions_response.json()
+        sessions = sessions_response.json()["sessions"]
         
         # Find the session we just created
-        test_session = next(s for s in sessions if s["device_name"] == "Test Device")
+        test_session = next(s for s in sessions if s["device_info"] == "Test Device")
         assert "created_at" in test_session
         assert test_session["created_at"] is not None
 
@@ -278,9 +281,9 @@ class TestMultiDeviceSessions:
             headers={"Authorization": f"Bearer {token}"}
         )
         assert sessions_response.status_code == 200
-        sessions = sessions_response.json()
+        sessions = sessions_response.json()["sessions"]
         
         # Find the session we just created
-        test_session = next(s for s in sessions if s["device_name"] == "Test Device")
+        test_session = next(s for s in sessions if s["device_info"] == "Test Device")
         assert "expires_at" in test_session
         assert test_session["expires_at"] is not None

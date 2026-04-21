@@ -3,6 +3,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from src.auth.jwt import decode_token
+from src.cache import is_token_blacklisted
 from src.database import get_db
 from src import models
 
@@ -23,6 +24,14 @@ def get_current_user(
 
     if payload.get("type") != "access":
         raise HTTPException(status_code=401, detail="Wrong token type")
+
+    # Check if token has been blacklisted (logged out)
+    if is_token_blacklisted(token):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has been revoked",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
     user = db.query(models.User).filter(models.User.id == int(payload["sub"])).first()
 

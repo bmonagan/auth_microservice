@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
 from src.auth.email import send_verification_email, send_password_reset_email
@@ -13,6 +13,7 @@ from src.auth.jwt import (
     decode_token,
 )
 from src.database import get_db
+from src.limiter import limiter
 from src.models import RefreshToken, User
 from src.schemas import LoginSchema, RegisterSchema, ForgotPasswordSchema, ResetPasswordSchema
 
@@ -71,7 +72,8 @@ def verify_email(token: str = Query(...), db: Session = Depends(get_db)):
 
 
 @router.post("/login")
-def login(payload: LoginSchema, db: Session = Depends(get_db)):
+@limiter.limit("5/minute")
+def login(request: Request, payload: LoginSchema, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == payload.email).first()
 
     if not user or not verify_password(payload.password, user.hashed_password):

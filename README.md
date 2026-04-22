@@ -80,3 +80,48 @@ Notes:
 - PostgreSQL data is persisted in the postgres_data Docker volume.
 - The base docker-compose.yml remains a local development stack using SQLite.
 - Docker marks the app container healthy only when /health/ready returns 200.
+
+## Railway Deployment
+
+This service is ready to deploy on Railway using the existing Dockerfile.
+
+### 1) Create services
+
+- Create an app service from this repository.
+- Add a PostgreSQL service in Railway.
+- Add a Redis service in Railway.
+
+### 2) Configure app environment variables
+
+Set these in your app service Variables tab:
+
+- SECRET_KEY (required, use a strong random value)
+- DATABASE_URL (required, use Railway Postgres connection string)
+- REDIS_URL (recommended, use Railway Redis connection string)
+- APP_BASE_URL (set to your Railway public URL, for example https://your-app.up.railway.app)
+
+Optional mail settings (only if you want real email sending):
+
+- SMTP_HOST
+- SMTP_PORT
+- SMTP_USE_TLS
+- SMTP_USERNAME
+- SMTP_PASSWORD
+- SMTP_FROM_EMAIL
+
+### 3) Deploy
+
+- Trigger a deploy from the latest commit.
+- Railway will build using Dockerfile and run the app on ${PORT} automatically.
+
+### 4) Verify after deploy
+
+- Open /docs for API docs.
+- Check /health/live for liveness.
+- Check /health for database and Redis status.
+- Check /health/ready for strict readiness.
+
+### Notes
+
+- If REDIS_URL is omitted, the app falls back to in-memory token blacklist storage. This is not recommended for production.
+- DATABASE_URL and SECRET_KEY are required; startup fails fast if they are missing.

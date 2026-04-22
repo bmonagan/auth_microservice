@@ -67,3 +67,29 @@ class TestAPIHealth:
         """Invalid endpoints return 404, not 500."""
         response = client.get("/invalid/endpoint/that/does/not/exist")
         assert response.status_code == 404
+
+    def test_live_health_endpoint(self, client):
+        """Liveness endpoint should always return alive."""
+        response = client.get("/health/live")
+        assert response.status_code == 200
+        assert response.json().get("status") == "alive"
+
+    def test_health_endpoint_includes_checks(self, client):
+        """Health endpoint returns status and dependency checks."""
+        response = client.get("/health")
+        assert response.status_code in [200, 503]
+        data = response.json()
+        assert "status" in data
+        assert "checks" in data
+        assert "database" in data["checks"]
+        assert "redis" in data["checks"]
+
+    def test_ready_endpoint_includes_checks(self, client):
+        """Readiness endpoint should report dependency checks."""
+        response = client.get("/health/ready")
+        assert response.status_code in [200, 503]
+        data = response.json()
+        assert "status" in data
+        assert "checks" in data
+        assert "database" in data["checks"]
+        assert "redis" in data["checks"]

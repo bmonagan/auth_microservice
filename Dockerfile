@@ -16,4 +16,4 @@ COPY src ./src
 
 EXPOSE 8000
 
-CMD ["sh", "-c", "uv run python -c \"from src.database import Base, engine; import src.models; Base.metadata.create_all(bind=engine)\" && uv run uvicorn src.main:app --host 0.0.0.0 --port 8000"]
+CMD ["sh", "-c", "uv run python -c \"from src.database import Base, engine; import src.models; Base.metadata.create_all(bind=engine)\" && uv run uvicorn src.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

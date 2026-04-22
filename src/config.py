@@ -1,4 +1,5 @@
 # config.py
+import sys
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -9,7 +10,7 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     EMAIL_VERIFICATION_EXPIRE_HOURS: int = 24
     PASSWORD_RESET_EXPIRE_MINUTES: int = 60
-    DATABASE_URL: str
+    DATABASE_URL: str = "sqlite:///./data/dev.db"
     REDIS_URL: str = "redis://localhost:6379"
     APP_BASE_URL: str = "http://127.0.0.1:8000"
     SMTP_HOST: str = ""
@@ -22,4 +23,13 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env")
 
 
-settings = Settings()  # type: ignore[call-arg]
+try:
+    settings = Settings()  # type: ignore[call-arg]
+except Exception as e:
+    print(
+        f"ERROR: Failed to load settings: {e}\n"
+        "Make sure the SECRET_KEY environment variable is set.\n"
+        "Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\"",
+        file=sys.stderr,
+    )
+    sys.exit(1)
